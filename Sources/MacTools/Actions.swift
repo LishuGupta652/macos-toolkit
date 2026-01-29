@@ -37,6 +37,19 @@ enum AppLauncher {
     }
 }
 
+enum URLLauncher {
+    static func open(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+enum FinderLauncher {
+    static func reveal(_ url: URL) {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+}
+
 enum ProcessRunner {
     static func run(_ launchPath: String, _ arguments: [String] = []) {
         let process = Process()
