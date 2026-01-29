@@ -170,6 +170,7 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func addMenuSection(_ section: MenuSection) {
+        guard !section.items.isEmpty else { return }
         if let title = section.title, !title.isEmpty {
             let titleItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             titleItem.isEnabled = false
