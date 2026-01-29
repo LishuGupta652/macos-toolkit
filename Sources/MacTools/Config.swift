@@ -102,7 +102,9 @@ final class ConfigManager {
         }
 
         if !fileManager.fileExists(atPath: configURL.path) {
-            if let defaultURL = Bundle.main.url(forResource: "DefaultConfig", withExtension: "json"),
+            let defaultURL = Bundle.main.url(forResource: "DefaultConfig", withExtension: "json")
+                ?? Bundle.module.url(forResource: "DefaultConfig", withExtension: "json")
+            if let defaultURL,
                let data = try? Data(contentsOf: defaultURL) {
                 try? data.write(to: configURL, options: [.atomic])
             } else if let data = try? JSONEncoder().encode(Config.fallback) {
