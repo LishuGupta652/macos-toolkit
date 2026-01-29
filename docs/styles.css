@@ -32,6 +32,10 @@ body {
   min-height: 100vh;
 }
 
+.app {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
 .app-name-link img {
   width: 28px;
   height: 28px;
@@ -87,6 +91,22 @@ body {
 
 .sidebar-nav ul ul li a:hover {
   color: #0f766e;
+}
+
+.sidebar-nav ul ul ul {
+  margin-left: 0.6rem;
+  padding-left: 0.8rem;
+  border-left: 1px dashed #cbd5f5;
+}
+
+.sidebar-nav ul ul ul li a {
+  font-size: 0.86rem;
+  color: #94a3b8;
+}
+
+.sidebar-nav ul ul ul li a::before {
+  content: \"— \";
+  color: #cbd5f5;
 }
 
 .sidebar ul li.active > a {
