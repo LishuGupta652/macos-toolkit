@@ -53,9 +53,26 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         return trimmed.isEmpty ? "MacTools" : trimmed
     }
 
+    private var isDebugBuild: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
+    }
+
     private var shouldShowDebugWindow: Bool {
         let envFlag = ProcessInfo.processInfo.environment["MACTOOLS_DEBUG"] == "1"
-        return envFlag || config.debug.showWindow
+        return isDebugBuild || envFlag || config.debug.showWindow
+    }
+
+    private var shouldShowDebugAlert: Bool {
+        ProcessInfo.processInfo.environment["MACTOOLS_DEBUG_ALERT"] == "1"
+    }
+
+    private func debugLog(_ message: String) {
+        guard shouldShowDebugWindow || shouldShowDebugAlert else { return }
+        fputs("[MacTools] \(message)\n", stderr)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -67,12 +84,17 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             NSApp.setActivationPolicy(.accessory)
         }
 
+        debugLog("Launch. debugWindow=\(shouldShowDebugWindow) debugAlert=\(shouldShowDebugAlert)")
+
         setupStatusItem()
         buildMenu()
         startRefreshTimer()
         updateDynamicItems()
         if shouldShowDebugWindow {
             showDebugWindow()
+        }
+        if shouldShowDebugAlert {
+            showDebugAlert()
         }
     }
 
@@ -293,6 +315,8 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func showDebugWindow() {
         if let debugWindow {
             debugWindow.makeKeyAndOrderFront(nil)
+            debugWindow.orderFrontRegardless()
+            NSApp.activate(ignoringOtherApps: true)
             return
         }
 
@@ -304,6 +328,9 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         )
         window.title = "\(displayTitle) Debug"
         window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .moveToActiveSpace, .fullScreenAuxiliary]
+        window.isMovableByWindowBackground = true
         window.center()
         window.delegate = self
 
@@ -352,7 +379,22 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         debugWindow = window
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            self.debugWindow?.orderFrontRegardless()
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func showDebugAlert() {
+        let alert = NSAlert()
+        alert.messageText = "\(displayTitle) Debug"
+        alert.informativeText = "MacTools launched in debug mode. This confirms the app is running."
+        alert.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
     }
 
     @objc private func reloadConfigFromDebug() {
