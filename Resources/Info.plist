@@ -18,6 +18,8 @@
     <string>1.0.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>MacTools uses AppleScript for shortcuts like Spotlight.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

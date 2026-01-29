@@ -1,20 +1,57 @@
 import Cocoa
 
+final class ActionPayload: NSObject {
+    let type: MenuItemType
+    let paneID: String?
+    let url: String?
+    let path: String?
+    let command: String?
+    let arguments: [String]?
+    let script: String?
+    let text: String?
+
+    init(
+        type: MenuItemType,
+        paneID: String? = nil,
+        url: String? = nil,
+        path: String? = nil,
+        command: String? = nil,
+        arguments: [String]? = nil,
+        script: String? = nil,
+        text: String? = nil
+    ) {
+        self.type = type
+        self.paneID = paneID
+        self.url = url
+        self.path = path
+        self.command = command
+        self.arguments = arguments
+        self.script = script
+        self.text = text
+    }
+}
+
 @main
 final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private let statusProvider = StatusProvider()
+    private let configManager = ConfigManager.shared
 
-    private let timeItem = NSMenuItem(title: "Time: --", action: nil, keyEquivalent: "")
-    private let batteryItem = NSMenuItem(title: "Battery: --", action: nil, keyEquivalent: "")
-    private let wifiItem = NSMenuItem(title: "Wi-Fi: --", action: nil, keyEquivalent: "")
-    private let clipboardItem = NSMenuItem(title: "Clipboard: --", action: nil, keyEquivalent: "")
+    private var config: Config = .fallback
+
+    private var timeItem: NSMenuItem?
+    private var batteryItem: NSMenuItem?
+    private var wifiItem: NSMenuItem?
+    private var clipboardItem: NSMenuItem?
 
     private var refreshTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        config = configManager.loadConfig()
+        statusProvider.updateTimeFormat(config.statusSection.timeFormat)
+
         setupStatusItem()
         buildMenu()
         startRefreshTimer()
@@ -31,61 +68,180 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "hammer.circle.fill", accessibilityDescription: "MacTools")
-            button.image?.isTemplate = true
-            button.toolTip = "MacTools"
-        }
+        applyMenuBarIcon()
         statusItem.menu = menu
+    }
+
+    private func applyMenuBarIcon() {
+        guard let button = statusItem.button else { return }
+        let icon = resolveMenuBarIcon()
+        button.image = icon
+        button.image?.isTemplate = true
+        button.toolTip = config.menuBarIcon.accessibilityLabel ?? "MacTools"
+        if icon == nil {
+            button.title = "MacTools"
+        } else {
+            button.title = ""
+        }
+    }
+
+    private func resolveMenuBarIcon() -> NSImage? {
+        if let iconPath = config.menuBarIcon.iconPath, !iconPath.isEmpty {
+            let baseURL = configManager.configDirectory()
+            let resolved = URL(fileURLWithPath: iconPath, relativeTo: baseURL).standardizedFileURL
+            if FileManager.default.fileExists(atPath: resolved.path),
+               let image = NSImage(contentsOf: resolved) {
+                image.isTemplate = true
+                return image
+            }
+        }
+
+        if let symbolName = config.menuBarIcon.symbolName, !symbolName.isEmpty {
+            return NSImage(systemSymbolName: symbolName, accessibilityDescription: config.menuBarIcon.accessibilityLabel)
+        }
+
+        return NSImage(systemSymbolName: "hammer.circle.fill", accessibilityDescription: "MacTools")
     }
 
     private func buildMenu() {
         menu.autoenablesItems = false
         menu.delegate = self
+        menu.removeAllItems()
+
+        timeItem = nil
+        batteryItem = nil
+        wifiItem = nil
+        clipboardItem = nil
 
         let header = NSMenuItem(title: "MacTools", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         menu.addItem(.separator())
 
-        timeItem.isEnabled = false
-        batteryItem.isEnabled = false
-        wifiItem.isEnabled = false
-        clipboardItem.isEnabled = false
-        menu.addItem(timeItem)
-        menu.addItem(batteryItem)
-        menu.addItem(wifiItem)
-        menu.addItem(clipboardItem)
-        menu.addItem(.separator())
+        addStatusSection()
 
-        menu.addItem(makeItem("Open Wi-Fi Settings...", #selector(openWiFiSettings)))
-        menu.addItem(makeItem("Open Bluetooth Settings...", #selector(openBluetoothSettings)))
-        menu.addItem(makeItem("Open Sound Settings...", #selector(openSoundSettings)))
-        menu.addItem(makeItem("Open Focus Settings...", #selector(openFocusSettings)))
-        menu.addItem(makeItem("Open Displays Settings...", #selector(openDisplaysSettings)))
-        menu.addItem(makeItem("Open Keyboard Settings...", #selector(openKeyboardSettings)))
-        menu.addItem(makeItem("Open Battery Settings...", #selector(openBatterySettings)))
-        menu.addItem(makeItem("Open Date & Time Settings...", #selector(openDateTimeSettings)))
-        menu.addItem(.separator())
+        for section in config.sections {
+            addMenuSection(section)
+        }
 
-        menu.addItem(makeItem("Open Calendar", #selector(openCalendar)))
-        menu.addItem(makeItem("Open Clock", #selector(openClock)))
-        menu.addItem(makeItem("Open Screenshot Tool", #selector(openScreenshotTool)))
-        menu.addItem(makeItem("Trigger Spotlight (Cmd+Space)", #selector(triggerSpotlight)))
-        menu.addItem(makeItem("Clear Clipboard", #selector(clearClipboard)))
-        menu.addItem(.separator())
-
-        menu.addItem(makeItem("Restart Finder", #selector(restartFinder)))
-        menu.addItem(makeItem("Relaunch MacTools", #selector(relaunchApp)))
-        menu.addItem(.separator())
-
-        menu.addItem(makeItem("Quit", #selector(quitApp), key: "q"))
+        addFooterSection()
     }
 
-    private func makeItem(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
-        item.target = self
-        return item
+    private func addStatusSection() {
+        let status = config.statusSection
+        let hasAny = status.showTime || status.showBattery || status.showWiFi || status.showClipboard
+        guard hasAny else { return }
+
+        if !status.title.isEmpty {
+            let titleItem = NSMenuItem(title: status.title, action: nil, keyEquivalent: "")
+            titleItem.isEnabled = false
+            menu.addItem(titleItem)
+        }
+
+        if status.showTime {
+            let item = NSMenuItem(title: "Time: --", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            timeItem = item
+        }
+
+        if status.showBattery {
+            let item = NSMenuItem(title: "Battery: --", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            batteryItem = item
+        }
+
+        if status.showWiFi {
+            let item = NSMenuItem(title: "Wi-Fi: --", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            wifiItem = item
+        }
+
+        if status.showClipboard {
+            let item = NSMenuItem(title: "Clipboard: --", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+            clipboardItem = item
+        }
+
+        menu.addItem(.separator())
+    }
+
+    private func addMenuSection(_ section: MenuSection) {
+        if let title = section.title, !title.isEmpty {
+            let titleItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            titleItem.isEnabled = false
+            menu.addItem(titleItem)
+        }
+
+        for item in section.items {
+            if let menuItem = makeConfiguredMenuItem(item) {
+                menu.addItem(menuItem)
+            }
+        }
+
+        menu.addItem(.separator())
+    }
+
+    private func addFooterSection() {
+        let footer = config.footer
+        if footer.showReloadConfig {
+            menu.addItem(makeConfiguredMenuItem(MenuItemConfig(type: .reloadConfig, title: "Reload Config"))!)
+        }
+        if footer.showOpenConfig {
+            menu.addItem(makeConfiguredMenuItem(MenuItemConfig(type: .openConfig, title: "Open Config"))!)
+        }
+        if footer.showRevealConfig {
+            menu.addItem(makeConfiguredMenuItem(MenuItemConfig(type: .revealConfig, title: "Reveal Config in Finder"))!)
+        }
+        if footer.showRelaunch {
+            menu.addItem(makeConfiguredMenuItem(MenuItemConfig(type: .relaunch, title: "Relaunch MacTools"))!)
+        }
+        if footer.showQuit {
+            menu.addItem(makeConfiguredMenuItem(MenuItemConfig(type: .quit, title: "Quit"))!)
+        }
+    }
+
+    private func makeConfiguredMenuItem(_ item: MenuItemConfig) -> NSMenuItem? {
+        if item.type == .separator {
+            return .separator()
+        }
+
+        let title = item.title?.isEmpty == false ? item.title! : defaultTitle(for: item.type)
+        let menuItem = NSMenuItem(title: title, action: #selector(handleConfiguredAction(_:)), keyEquivalent: item.keyEquivalent ?? "")
+        menuItem.target = self
+        menuItem.isEnabled = item.enabled ?? true
+        menuItem.representedObject = ActionPayload(
+            type: item.type,
+            paneID: item.paneID,
+            url: item.url,
+            path: item.path,
+            command: item.command,
+            arguments: item.arguments,
+            script: item.script,
+            text: item.text
+        )
+        return menuItem
+    }
+
+    private func defaultTitle(for type: MenuItemType) -> String {
+        switch type {
+        case .openSettings: return "Open Settings"
+        case .openApp: return "Open App"
+        case .openURL: return "Open URL"
+        case .shell: return "Run Command"
+        case .appleScript: return "Run AppleScript"
+        case .clipboardCopy: return "Copy to Clipboard"
+        case .clipboardClear: return "Clear Clipboard"
+        case .reloadConfig: return "Reload Config"
+        case .openConfig: return "Open Config"
+        case .revealConfig: return "Reveal Config in Finder"
+        case .relaunch: return "Relaunch MacTools"
+        case .quit: return "Quit"
+        case .separator: return ""
+        }
     }
 
     private func startRefreshTimer() {
@@ -95,36 +251,65 @@ final class MacToolsApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateDynamicItems() {
-        timeItem.title = statusProvider.timeStatus()
-        batteryItem.title = statusProvider.batteryStatus()
-        wifiItem.title = statusProvider.wifiStatus()
-        clipboardItem.title = statusProvider.clipboardStatus()
+        if let timeItem {
+            timeItem.title = statusProvider.timeStatus()
+        }
+        if let batteryItem {
+            batteryItem.title = statusProvider.batteryStatus()
+        }
+        if let wifiItem {
+            wifiItem.title = statusProvider.wifiStatus()
+        }
+        if let clipboardItem {
+            clipboardItem.title = statusProvider.clipboardStatus()
+        }
     }
 
-    @objc private func openWiFiSettings() { SystemSettings.open(paneID: SystemSettingsPane.wifi) }
-    @objc private func openBluetoothSettings() { SystemSettings.open(paneID: SystemSettingsPane.bluetooth) }
-    @objc private func openSoundSettings() { SystemSettings.open(paneID: SystemSettingsPane.sound) }
-    @objc private func openFocusSettings() { SystemSettings.open(paneID: SystemSettingsPane.focus) }
-    @objc private func openDisplaysSettings() { SystemSettings.open(paneID: SystemSettingsPane.displays) }
-    @objc private func openKeyboardSettings() { SystemSettings.open(paneID: SystemSettingsPane.keyboard) }
-    @objc private func openBatterySettings() { SystemSettings.open(paneID: SystemSettingsPane.battery) }
-    @objc private func openDateTimeSettings() { SystemSettings.open(paneID: SystemSettingsPane.dateTime) }
+    @objc private func handleConfiguredAction(_ sender: NSMenuItem) {
+        guard let payload = sender.representedObject as? ActionPayload else { return }
 
-    @objc private func openCalendar() { AppLauncher.openApp(at: AppPaths.calendar) }
-    @objc private func openClock() { AppLauncher.openApp(at: AppPaths.clock) }
-    @objc private func openScreenshotTool() { AppLauncher.openApp(at: AppPaths.screenshot) }
-
-    @objc private func triggerSpotlight() {
-        ScriptRunner.runAppleScript("tell application \"System Events\" to keystroke space using command down")
+        switch payload.type {
+        case .openSettings:
+            SystemSettings.open(paneID: payload.paneID)
+        case .openApp:
+            if let path = payload.path { AppLauncher.openApp(at: path) }
+        case .openURL:
+            if let url = payload.url { URLLauncher.open(url) }
+        case .shell:
+            if let command = payload.command {
+                ProcessRunner.run(command, payload.arguments ?? [])
+            }
+        case .appleScript:
+            if let script = payload.script { ScriptRunner.runAppleScript(script) }
+        case .clipboardCopy:
+            if let text = payload.text {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+            }
+        case .clipboardClear:
+            statusProvider.clearClipboard()
+            updateDynamicItems()
+        case .reloadConfig:
+            reloadConfig()
+        case .openConfig:
+            configManager.openConfig()
+        case .revealConfig:
+            configManager.revealConfigInFinder()
+        case .relaunch:
+            Relauncher.relaunch()
+        case .quit:
+            NSApp.terminate(nil)
+        case .separator:
+            break
+        }
     }
 
-    @objc private func clearClipboard() {
-        statusProvider.clearClipboard()
+    private func reloadConfig() {
+        config = configManager.loadConfig()
+        statusProvider.updateTimeFormat(config.statusSection.timeFormat)
+        applyMenuBarIcon()
+        buildMenu()
         updateDynamicItems()
     }
-
-    @objc private func restartFinder() { ProcessRunner.run("/usr/bin/killall", ["Finder"]) }
-
-    @objc private func relaunchApp() { Relauncher.relaunch() }
-    @objc private func quitApp() { NSApp.terminate(nil) }
 }
