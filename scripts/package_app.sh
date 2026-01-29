@@ -21,6 +21,14 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BUILD_DIR/$APP_NAME" "$APP_DIR/Contents/MacOS/$APP_NAME"
 cp "$INFO_PLIST_SRC" "$APP_DIR/Contents/Info.plist"
 
+if [[ -d "$ROOT/Sources/MacTools/Resources" ]]; then
+  rsync -a "$ROOT/Sources/MacTools/Resources/" "$APP_DIR/Contents/Resources/"
+fi
+
+if [[ -d "$ROOT/Resources" ]]; then
+  rsync -a --exclude 'Info.plist' "$ROOT/Resources/" "$APP_DIR/Contents/Resources/"
+fi
+
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP_DIR/Contents/Info.plist"
