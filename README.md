@@ -1,3 +1,5 @@
+![MacTools](docs/assets/logo.svg)
+
 # MacTools (Menu Bar Boilerplate)
 
 MacTools is a complete, minimal macOS menu bar app scaffold you can customize into your personal "Mac tools" suite. It ships with:
