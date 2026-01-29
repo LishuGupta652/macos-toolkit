@@ -93,6 +93,25 @@ Run from source (menu bar item appears):
 swift run
 ```
 
+## Documentation Site
+
+Docs live in `docs/` and are rendered with Docsify (no build step).
+
+Preview locally:
+
+```bash
+cd docs
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080`.
+
+If you prefer Docsify's dev server:
+
+```bash
+npx docsify-cli serve docs
+```
+
 ---
 
 ## Package a .app

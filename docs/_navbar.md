@@ -1,0 +1,7 @@
+* [Docs](/)
+* [Getting Started](getting-started.md)
+* [Configuration](configuration.md)
+* [Actions](actions.md)
+* [Packaging](packaging.md)
+* [Cask](cask.md)
+* [Deploy](deploy.md)

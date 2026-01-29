@@ -1,0 +1,72 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --theme-color: #0f766e;
+  --base-font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --base-font-size: 16px;
+  --code-font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cover-heading-color: #0f172a;
+  --cover-blockquote-color: #334155;
+  --link-color: #0f766e;
+  --link-color--hover: #115e59;
+  --sidebar-nav-link-color--active: #0f766e;
+  --selection-color: rgba(15, 118, 110, 0.2);
+}
+
+body {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.app-name-link img {
+  width: 28px;
+  height: 28px;
+}
+
+.markdown-section {
+  max-width: 980px;
+}
+
+.markdown-section code {
+  font-family: var(--code-font-family);
+  font-size: 0.9em;
+}
+
+.markdown-section pre {
+  border-radius: 12px;
+}
+
+.sidebar {
+  background: rgba(248, 250, 252, 0.9);
+  border-right: 1px solid #e2e8f0;
+}
+
+.sidebar ul li.active > a {
+  font-weight: 600;
+}
+
+.cover-main {
+  text-align: left;
+}
+
+.cover-main h1 {
+  font-size: 3rem;
+  letter-spacing: -0.02em;
+}
+
+.cover-main p {
+  max-width: 520px;
+}
+
+section.cover {
+  background: radial-gradient(circle at top, #e0f2f1 0%, #f8fafc 55%, #f1f5f9 100%);
+}
+
+.docsify-pagination-container {
+  border-top: 1px solid #e2e8f0;
+}
+
+@media (max-width: 640px) {
+  .cover-main h1 {
+    font-size: 2.2rem;
+  }
+}
